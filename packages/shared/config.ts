@@ -16,21 +16,6 @@ const optionalStringBool = () =>
     .transform((s) => s === "true")
     .optional();
 
-// Only asymmetric algorithms are supported here because ID tokens are verified
-// against the provider's JWKS. Do not add "none" or symmetric HS* algorithms.
-const oauthIdTokenSignedResponseAlg = z.enum([
-  "RS256",
-  "RS384",
-  "RS512",
-  "PS256",
-  "PS384",
-  "PS512",
-  "ES256",
-  "ES384",
-  "ES512",
-  "EdDSA",
-]);
-
 const allEnv = z.object({
   PORT: z.coerce.number().default(3000),
   WORKERS_HOST: z.string().default("127.0.0.1"),
@@ -60,6 +45,15 @@ const allEnv = z.object({
     .prefault("http://localhost:3000")
     .transform((s) => s.replace(/\/+$/, "")),
   NEXTAUTH_SECRET: z.string().optional(),
+  AUTH_TRUSTED_ORIGINS: z
+    .string()
+    .default("*")
+    .transform((val) =>
+      val
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
   DISABLE_SIGNUPS: stringBool("false"),
   DISABLE_PASSWORD_AUTH: stringBool("false"),
   OAUTH_AUTO_REDIRECT: stringBool("false"),
@@ -67,9 +61,10 @@ const allEnv = z.object({
   OAUTH_WELLKNOWN_URL: z.string().url().optional(),
   OAUTH_CLIENT_SECRET: z.string().optional(),
   OAUTH_CLIENT_ID: z.string().optional(),
-  OAUTH_ID_TOKEN_SIGNED_RESPONSE_ALG: oauthIdTokenSignedResponseAlg.optional(),
-  OAUTH_TIMEOUT: z.coerce.number().optional().default(3500),
   OAUTH_SCOPE: z.string().default("openid email profile"),
+  OAUTH_TOKEN_ENDPOINT_AUTH_METHOD: z
+    .enum(["client_secret_basic", "client_secret_post"])
+    .default("client_secret_basic"),
   OAUTH_PROVIDER_NAME: z.string().default("Custom Provider"),
   TURNSTILE_SITE_KEY: z.string().optional(),
   TURNSTILE_SECRET_KEY: z.string().optional(),
@@ -126,6 +121,7 @@ const allEnv = z.object({
   BROWSER_COOKIE_PATH: z.string().optional(),
   CRAWLER_JOB_TIMEOUT_SEC: z.coerce.number().default(60),
   CRAWLER_NAVIGATE_TIMEOUT_SEC: z.coerce.number().default(30),
+  CRAWLER_CHALLENGE_WAIT_SEC: z.coerce.number().default(15),
   CRAWLER_BROWSER_TIMEZONE: z
     .string()
     .refine(
@@ -318,6 +314,7 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
       disableSignups: val.DISABLE_SIGNUPS,
       disablePasswordAuth: val.DISABLE_PASSWORD_AUTH,
       emailVerificationRequired: val.EMAIL_VERIFICATION_REQUIRED,
+      trustedOrigins: val.AUTH_TRUSTED_ORIGINS,
       oauth: {
         autoRedirect: val.OAUTH_AUTO_REDIRECT,
         allowDangerousEmailAccountLinking:
@@ -325,10 +322,9 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
         wellKnownUrl: val.OAUTH_WELLKNOWN_URL,
         clientSecret: val.OAUTH_CLIENT_SECRET,
         clientId: val.OAUTH_CLIENT_ID,
-        idTokenSignedResponseAlg: val.OAUTH_ID_TOKEN_SIGNED_RESPONSE_ALG,
         scope: val.OAUTH_SCOPE,
+        tokenEndpointAuthMethod: val.OAUTH_TOKEN_ENDPOINT_AUTH_METHOD,
         name: val.OAUTH_PROVIDER_NAME,
-        timeout: val.OAUTH_TIMEOUT,
       },
       turnstile: {
         enabled: val.TURNSTILE_SITE_KEY !== undefined,
@@ -420,6 +416,7 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
       browserCookiePath: val.BROWSER_COOKIE_PATH,
       jobTimeoutSec: val.CRAWLER_JOB_TIMEOUT_SEC,
       navigateTimeoutSec: val.CRAWLER_NAVIGATE_TIMEOUT_SEC,
+      challengeWaitSec: val.CRAWLER_CHALLENGE_WAIT_SEC,
       browserTimezone: val.CRAWLER_BROWSER_TIMEZONE,
       downloadBannerImage: val.CRAWLER_DOWNLOAD_BANNER_IMAGE,
       storeScreenshot: val.CRAWLER_STORE_SCREENSHOT,
